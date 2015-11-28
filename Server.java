@@ -5,7 +5,7 @@ import java.util.*;
 
 public class Server {
 
-	private static final int sPort = 8000;
+	private static int sPort;
 	public final int CHUNK_SIZE = 1024*100;
 
 	public Server() {}
@@ -47,13 +47,42 @@ public class Server {
         return partFiles;
 	}
 
+	// Read config file
+	private void ReadConfig() {
+		Properties prop = new Properties();
+		InputStream input = null;
+
+		try {
+
+			input = new FileInputStream("resources/config.properties");
+			//input = new FileInputStream("../resources/config.properties");
+
+			// load the properties file
+			prop.load(input);
+			
+			// Get the server port number on which the server will be listening on.
+			sPort = Integer.parseInt(prop.getProperty("server"));
+			
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		} finally {
+			if (input != null) {
+				try {
+					input.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+	
 	public static void main(String[] args) throws Exception {
 
 		System.out.print("Enter the name of the file: ");
 	    Scanner scanner = new Scanner(System.in);
-	    //String filename = scanner.next();
-	    String filename = "data.jpg";
-	    String filepath = "/home/sanilborkar/Server/src/data.jpg"; //scanner.next();
+	    String filename = scanner.next();
+	    scanner.close();
+	    String filepath = "resources/" + filename;
 
 		Server S = new Server();
 		
@@ -66,6 +95,8 @@ public class Server {
 			System.out.println(partFiles.get(k));
 		}*/
 
+		S.ReadConfig();
+		
 		System.out.println("The server is running."); 
         ServerSocket listener = new ServerSocket(sPort);
 		int clientNum = 0;
@@ -83,11 +114,10 @@ public class Server {
 
 
     private static class Handler extends Thread {
-	private File MESSAGE;    // Message to send to the client
 	private Socket connection;
-    private ObjectInputStream in;	//stream read from the socket
-    private ObjectOutputStream out;    //stream write to the socket
-	private int no;		//The index number of the client
+    private ObjectInputStream in;		// Stream read from the socket
+    private ObjectOutputStream out;    	// Stream write to the socket
+	private int no;						// Client number
 	private ArrayList<File> partFiles;	// Stores the file chunks objects
 	private int totalChunks;
 	private static int chunkNum = 0;
@@ -99,7 +129,7 @@ public class Server {
 		this.no = no;
 		this.partFiles = partFiles;
 		this.totalChunks = totalChunks;
-		this.filename = fname;
+		filename = fname;
 		flag = true;
     }
 
@@ -141,8 +171,7 @@ public class Server {
 	}
 
 	//send a message to the output stream
-	public void sendMessage(File msg, int totalChunks, int chunkNum, int clientNum, String filename)
-	{
+	public void sendMessage(File msg, int totalChunks, int chunkNum, int clientNum, String filename) {
 		try{
 			// Filename
 			if (flag) {
