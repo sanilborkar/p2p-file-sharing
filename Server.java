@@ -1,8 +1,6 @@
 import java.net.*;
 import java.io.*;
-import java.nio.*;
 import java.nio.file.Files;
-import java.nio.channels.*;
 import java.util.*;
 
 public class Server {
@@ -10,7 +8,7 @@ public class Server {
 	private static final int sPort = 8000;
 	public final int CHUNK_SIZE = 1024*100;
 
-	public void Server() {}
+	public Server() {}
 
 /*	private class Data {
 		File fileObj;
@@ -53,6 +51,8 @@ public class Server {
 
 		System.out.print("Enter the name of the file: ");
 	    Scanner scanner = new Scanner(System.in);
+	    //String filename = scanner.next();
+	    String filename = "data.pdf";
 	    String filepath = "/home/sanilborkar/Server/src/data.pdf"; //scanner.next();
 
 		Server S = new Server();
@@ -73,7 +73,7 @@ public class Server {
         try {
             while(true) {
 				clientNum++;
-            	new Handler(listener.accept(), clientNum, partFiles, totalChunks).start();
+            	new Handler(listener.accept(), clientNum, partFiles, totalChunks, filename).start();
 				System.out.println("Client "  + clientNum + " is connected!");
             }
         } finally {
@@ -90,12 +90,17 @@ public class Server {
 	private int no;		//The index number of the client
 	private ArrayList<File> partFiles;	// Stores the file chunks objects
 	private int totalChunks;
+	private static int chunkNum = 0;
+	private static String filename = "";
+	private static boolean flag;
 
-    public Handler(Socket connection, int no, ArrayList<File> partFiles, int totalChunks) {
+    public Handler(Socket connection, int no, ArrayList<File> partFiles, int totalChunks, String fname) {
     	this.connection = connection;
 		this.no = no;
 		this.partFiles = partFiles;
 		this.totalChunks = totalChunks;
+		this.filename = fname;
+		flag = true;
     }
 
     @Override
@@ -106,36 +111,12 @@ public class Server {
 			out.flush();
 			in = new ObjectInputStream(connection.getInputStream());
 
-			int chunkNum = 0;
-			int i = 0;
 			try{
-				while(i < partFiles.size())
-				{
-					// Send totalChunks only before the 1st message, send -1 to sendMessage() otherwise
-					if (i != 0)
-						totalChunks = -1;
-					
-					// Once atleast 2 clients join, start sending them chunks
-					if (no == 1) {
-						//for (int i = 0; i <  .size(); i+=2) {
-						if (i%2 == 0) {
-							//System.out.println("Sending chunk " + i + " to client " + no);
-							MESSAGE = partFiles.get(i);
-							sendMessage(MESSAGE, totalChunks, i, no);
-						}
-						//}
-						
-					}
-					else if (no == 2) {
-						//for (int j = 1; j < partFiles.size(); j+=2) {
-						if (i%2 == 1) {
-							System.out.println("Sending chunk " + i + " to client " + no);
-							MESSAGE = partFiles.get(i);
-							sendMessage(MESSAGE, totalChunks, i, no);
-						}
-					}
-
-					i++;
+				while(chunkNum < partFiles.size())
+				{					
+					sendMessage(partFiles.get(chunkNum), totalChunks, chunkNum, no, filename);
+					chunkNum++;
+					Thread.sleep(5000);
 				}
 			}
 			catch(Exception e) {}
@@ -160,13 +141,20 @@ public class Server {
 	}
 
 	//send a message to the output stream
-	public void sendMessage(File msg, int totalChunks, int chunkNum, int clientNum)
+	public void sendMessage(File msg, int totalChunks, int chunkNum, int clientNum, String filename)
 	{
 		try{
+			// Filename
+			if (flag) {
+				out.writeObject(filename);
+				out.flush();
+				flag = false;
+			}
+			
 			// Total chunks
 			if (totalChunks > 0) {
 				out.writeObject(totalChunks + "");
-				out.flush();
+				out.flush();				
 			}
 
 			// Current chunk number

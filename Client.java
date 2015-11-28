@@ -1,10 +1,8 @@
-// CLIENT 1
+// CLIENT 2
 
 import java.net.*;
 import java.io.*;
-import java.nio.*;
 import java.nio.file.Files;
-import java.nio.channels.*;
 import java.util.*;
 
 public class Client implements Runnable {
@@ -14,20 +12,39 @@ public class Client implements Runnable {
 	Socket requestSocket;           //socket connect to the server
 	ObjectOutputStream out;         //stream write to the socket
  	ObjectInputStream in;          //stream read from the socket
+	ObjectOutputStream outDown;         //stream write to the socket
+ 	ObjectInputStream inDown;          //stream read from the socket
+ 	ObjectOutputStream outUp;         //stream write to the socket
+ 	ObjectInputStream inUp;          //stream read from the socket
 	String message;                //message send to the server
 	int MESSAGE;                //capitalized message read from the server
-	File[] partFiles;
+	static File[] availableChunks;
 	boolean flag;
 	int clientNum;
 	Role clientRole;
 	int totalChunks;
+	File[] requiredChunks;
+	static int dwldNeighbor;
+	static int dwldNeighborPort;
+	static int sPort;
+	static ServerSocket uploadSocket;
+	Socket upSock;		// Upload socket
+	private static boolean flagFilename;
+	private static String filename;
 
 	public Client(int num, Role r) {
 		flag = false;
 		clientRole = r;
 		clientNum = num;
-		totalChunks = 0;
-		//partFiles = new ArrayList<File>();
+		flagFilename = true;
+//		dwldNeighbor = -1;
+//		dwldNeighborPort = -1;
+//		sPort = -1;
+		if (r == Role.TALK_TO_SERVER) {
+			totalChunks = 0;
+			availableChunks = null;
+			requiredChunks = null;
+		}
 	}
 	
 	public void run()
@@ -41,22 +58,17 @@ public class Client implements Runnable {
 				try{
 					//create a socket to connect to the server
 					requestSocket = new Socket("localhost", 8000);
-					System.out.println("Connected to localhost in port 8000");
+					System.out.println("Connected to localhost at port 8000");
 					//initialize inputStream and outputStream
 					out = new ObjectOutputStream(requestSocket.getOutputStream());
 					out.flush();
 					in = new ObjectInputStream(requestSocket.getInputStream());
 					
-					//get Input from standard input
-					/*BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
-					FileOutputStream fos = null;
-				    BufferedOutputStream bos = null;
-				    int part = 0;*/
 					while(true)
 					{
 						
 						System.out.println("Staring to receive chunks");
-		      			ReceiveFileChunks();
+		      			ReceiveFileChunksFromServer();
 						
 		      			if (flag)
 		      				break;		                
@@ -77,38 +89,214 @@ public class Client implements Runnable {
 				catch(Exception e){
 					//err.printStackTrace();
 				}
-				finally{
+				/*finally{
 					//Close connections
 					try{
 						in.close();
 						out.close();
-						requestSocket.close();
+						//requestSocket.close();
 					}
 					catch(IOException ioException){
 						ioException.printStackTrace();
 					}
+				}*/
+				break;
+				
+				
+			case DOWNLOADER:
+				
+				try {
+					/*System.out.println("Start?");
+					Scanner s = new Scanner(System.in);
+					String tmp = s.next();*/
+					
+					//create a socket to connect to the server
+					while (requestSocket == null) {
+						try {
+							System.out.println(clientNum + ": Downloader connecting to port " + dwldNeighborPort);
+							requestSocket = new Socket("localhost", dwldNeighborPort);
+						}
+						catch(Exception e) {
+							System.out.println("Waiting for " + dwldNeighbor + " to come up. Retrying in 1 second.");
+							Thread.sleep(5000);
+						}
+					}
+					
+					System.out.println("D: Connected to localhost at port " + dwldNeighborPort);
+					
+					//initialize inputStream and outputStream
+					outDown = new ObjectOutputStream(requestSocket.getOutputStream());
+					outDown.flush();
+					inDown = new ObjectInputStream(requestSocket.getInputStream());
+					
+					while (true) {
+						
+						// If this client never contacted the server, then it has not received any chunks
+						if (availableChunks == null) {
+							System.out.println("D: availableChunks is NULL");
+						}
+						else {
+							System.out.println("D: Checking requiredChunks");
+							
+							for(int i = 0; i < availableChunks.length; i++) {
+								if (availableChunks[i] != null)
+									System.out.print(i + "\t");
+							}
+								
+							
+							String requiredChunks = "";
+							for(int i = 0; i < availableChunks.length; i++) {
+								if (availableChunks[i] == null) {
+									if (requiredChunks == "")
+										requiredChunks += i;
+									else
+										requiredChunks += "," + i;
+								}
+							}
+							
+							// If there are no requiredChunks --> all the chunks have been received. So, merge!
+							if (requiredChunks == "") {
+								MergeChunks(availableChunks);
+								break;
+							}
+							
+							// Send the requested chunks list to download neighbor
+							System.out.println("Requesting chunks " + requiredChunks + " from Client " + dwldNeighbor);
+							outDown.writeObject(requiredChunks);
+							outDown.flush();
+							
+							Thread.sleep(1000);
+
+							// Receive file chunk from the download neighbor
+							String[] rcArray = requiredChunks.split(",");
+							for (int i = 0; i < rcArray.length; i++)
+								ReceiveFileChunkFromNeighbor();
+							
+							Thread.sleep(1000);
+						}
+					}
 				}
-		default:
-			break;
+				catch (ConnectException e) {
+	    			System.err.println("Connection refused. You need to initiate a server first.");
+				} 
+				catch(UnknownHostException unknownHost){
+					System.err.println("You are trying to connect to an unknown host!");
+				}
+				catch(IOException ioException){
+					ioException.printStackTrace();
+				}
+				catch(Exception e){
+					//err.printStackTrace();
+				}
+				/*finally{
+					//Close connections
+					try{
+						inDown.close();
+						outDown.close();
+						//requestSocket.close();
+					}
+					catch(IOException ioException){
+						ioException.printStackTrace();
+					}
+				}*/
+				
+				break;
+				
+				
+			case UPLOADER:
+				
+				try {				
+					// Listen for requests from Upload Neighbor
+					upSock = uploadSocket.accept();
+					
+					// Initialize inputStream and outputStream
+					outUp = new ObjectOutputStream(upSock.getOutputStream());
+					outUp.flush();
+					inUp = new ObjectInputStream(upSock.getInputStream());
+					
+					System.out.println(clientNum + ": Uploader listening on port " + sPort);
+					
+					String upRequested = "";
+					while (true) {
+						
+						// Get the requestedChunks from upload neighbor. These are the chunks that
+						// the upload neighbor needs from this client
+						upRequested = (String) inUp.readObject();
+						String[] upRequestedChunks = upRequested.split(",");
+						
+						// Check this against availableChunks and send the chunks that we have to Upload Neighbor
+						if (availableChunks == null) { System.out.println("U: availableChunks is NULL"); }
+						else {
+							
+							for (int i = 0; i < upRequestedChunks.length; i++) {
+								
+								// If we have the required chunk, send it!
+								int reqChunkNum = Integer.parseInt(upRequestedChunks[i]);
+								if (availableChunks[reqChunkNum] != null)
+									SendChunk(reqChunkNum);
+								else
+									SendChunk(-1);
+							}
+						}
+					}
+				}
+				catch (ConnectException e) {
+	    			System.err.println("Connection refused. You need to initiate a server first.");
+				} 
+				catch(UnknownHostException unknownHost){
+					System.err.println("You are trying to connect to an unknown host!");
+				}
+				catch(IOException ioException){
+					ioException.printStackTrace();
+				}
+				catch(Exception e){
+					//err.printStackTrace();
+				}
+				/*finally{
+					//Close connections
+					try{
+						inUp.close();
+						outUp.close();
+						//requestSocket.close();
+					}
+					catch(IOException ioException){
+						ioException.printStackTrace();
+					}
+				}*/
+				
+				break;
+				
+				
+			default:
+				break;
 			
 		}
 
 	}
 
 
-	void ReceiveFileChunks() throws Exception, ClassNotFoundException {		
+	void ReceiveFileChunksFromServer() throws Exception, ClassNotFoundException {		
 		try {
-			if (totalChunks == 0) {
-				totalChunks = Integer.parseInt((String)in.readObject());
-				partFiles = new File[totalChunks];
+			if (flagFilename) {
+				filename = (String)in.readObject();
+				flagFilename = false;
 			}
+				
+			
+			totalChunks = Integer.parseInt((String)in.readObject());
+			
+			if (availableChunks == null)
+				availableChunks = new File[totalChunks];
+			
+			if (requiredChunks == null)
+				requiredChunks = new File[totalChunks];
 			
 			int partNumber = Integer.parseInt((String)in.readObject());
 
 			File partFile = new File("/home/sanilborkar/Client/Client" + clientNum + "/chunks/" + "File." + partNumber);
 			byte[] msg = (byte[]) in.readObject();
 			Files.write(partFile.toPath(), msg);
-			partFiles[partNumber] = partFile;
+			availableChunks[partNumber] = partFile;
 			System.out.println("Received chunk " + partNumber);
 		}
 		catch (ClassNotFoundException e) {
@@ -119,20 +307,132 @@ public class Client implements Runnable {
 		}
 	}
 
+	
+	void ReceiveFileChunkFromNeighbor() throws Exception, ClassNotFoundException {		
+		try {
+			int	chunkNum = Integer.parseInt((String)inDown.readObject());
+			if (chunkNum == -1)
+				return;
+			
+			byte[] msg = (byte[]) inDown.readObject();
+			
+			File chunkFile = new File("/home/sanilborkar/Client/Client" + clientNum + "/chunks/" + "File." + chunkNum);
+			Files.write(chunkFile.toPath(), msg);
+			
+			availableChunks[chunkNum] = chunkFile;
+			System.out.println("Received chunk " + chunkNum + " from Client " + dwldNeighbor);
+		}
+		catch (ClassNotFoundException e) {
+			flag = true;
+		}
+		catch (Exception e) {
+			flag = true;
+		}
+	}
+	
+	
+	// Merge the availableChunks to build the original file
+	void MergeChunks(File[] chunks) throws IOException {
+		
+		// Safety check
+		if (chunks == null) {
+			System.err.println("ERROR: No chunks to merge!");
+			return;
+		}
+		
+	    FileOutputStream fos = new FileOutputStream("/home/sanilborkar/Client/Client" + clientNum + "/complete/" + filename);
+		
+		try {
+		    FileInputStream fis;
+		    byte[] fileBytes;
+		    int bytesRead;
+		    for (File f : chunks) {
+		        fis = new FileInputStream(f);
+		        fileBytes = new byte[(int) f.length()];
+		        bytesRead = fis.read(fileBytes, 0, (int) f.length());
+		        assert(bytesRead == fileBytes.length);
+		        assert(bytesRead == (int) f.length());
+		        fos.write(fileBytes);
+		        fos.flush();
+		        fileBytes = null;
+		        fis.close();
+		        fis = null;
+		    }
+		} catch (Exception exception){
+			exception.printStackTrace();
+		}
+		finally {
+			fos.close();
+		    fos = null;
+		}
+	}
+	
 	//send a message to the output stream
-	void sendMessage(String msg)
+	void SendChunk(int chunkNum)
 	{
 		try{
-			//stream write the message
-			out.writeObject(msg);
-			out.flush();
+			// Send the chunk number that will follow
+			outUp.writeObject(chunkNum + "");
+			outUp.flush();
+			
+			// Send the chunk
+			if (chunkNum != -1) {
+				byte[] fileContents = Files.readAllBytes(availableChunks[chunkNum].toPath());
+				outUp.writeObject(fileContents);
+				outUp.flush();
+			}
 		}
 		catch(IOException ioException){
 			ioException.printStackTrace();
 		}
 	}
-	//main method
-	public static void main(String args[])
+
+	
+	// Read config file
+	private static void ReadConfig(int clientNum) {
+		Properties prop = new Properties();
+		InputStream input = null;
+
+		try {
+
+			input = new FileInputStream("resources/config.properties");
+			//input = new FileInputStream("../resources/config.properties");
+
+			// load the properties file
+			prop.load(input);
+
+			// get the property value
+			String propValue = prop.getProperty("client" + clientNum);
+			
+			/* props[0] = port on which to listen
+			 * props[1] = download neighbor
+			 * props[2] = upload neighbor
+			 */
+			String[] props = propValue.split(" ");
+			sPort = Integer.parseInt(props[0]);
+			dwldNeighbor = Integer.parseInt(props[1]);
+			
+			// Get port number of download neighbor
+			propValue = prop.getProperty("client" + props[1]);
+			dwldNeighborPort = Integer.parseInt(propValue.split(" ")[0]);
+			
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		} finally {
+			if (input != null) {
+				try {
+					input.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+	}
+
+	
+	// main method
+	public static void main(String args[]) throws IOException, InterruptedException
 	{		
 		boolean success = false;
 		
@@ -145,7 +445,16 @@ public class Client implements Runnable {
 			/*Client client = new Client(i, Role.TALK_TO_SERVER);
 			client.run();*/
 			
-		new Thread(new Client(clientNum, Role.TALK_TO_SERVER)).start();		
+		// Read configuration file
+		ReadConfig(clientNum);
+		
+		// Start listening on its own source port for requests from Upload Neighbor
+		uploadSocket = new ServerSocket(sPort, 10);
+		
+		new Thread(new Client(clientNum, Role.TALK_TO_SERVER)).start();
+		Thread.sleep(5000);
+		new Thread(new Client(clientNum, Role.DOWNLOADER)).start();
+		new Thread(new Client(clientNum, Role.UPLOADER)).start();
 	}
 
 }
