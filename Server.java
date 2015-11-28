@@ -52,8 +52,8 @@ public class Server {
 		System.out.print("Enter the name of the file: ");
 	    Scanner scanner = new Scanner(System.in);
 	    //String filename = scanner.next();
-	    String filename = "data.pdf";
-	    String filepath = "/home/sanilborkar/Server/src/data.pdf"; //scanner.next();
+	    String filename = "data.jpg";
+	    String filepath = "/home/sanilborkar/Server/src/data.jpg"; //scanner.next();
 
 		Server S = new Server();
 		
@@ -116,7 +116,7 @@ public class Server {
 				{					
 					sendMessage(partFiles.get(chunkNum), totalChunks, chunkNum, no, filename);
 					chunkNum++;
-					Thread.sleep(5000);
+					Thread.sleep(1000);
 				}
 			}
 			catch(Exception e) {}

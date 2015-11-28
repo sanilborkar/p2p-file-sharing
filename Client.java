@@ -118,7 +118,7 @@ public class Client implements Runnable {
 						}
 						catch(Exception e) {
 							System.out.println("Waiting for " + dwldNeighbor + " to come up. Retrying in 1 second.");
-							Thread.sleep(5000);
+							Thread.sleep(1000);
 						}
 					}
 					
@@ -165,14 +165,14 @@ public class Client implements Runnable {
 							outDown.writeObject(requiredChunks);
 							outDown.flush();
 							
-							Thread.sleep(1000);
+							//Thread.sleep(1000);
 
 							// Receive file chunk from the download neighbor
 							String[] rcArray = requiredChunks.split(",");
 							for (int i = 0; i < rcArray.length; i++)
 								ReceiveFileChunkFromNeighbor();
 							
-							Thread.sleep(1000);
+							//Thread.sleep(1000);
 						}
 					}
 				}
@@ -452,7 +452,7 @@ public class Client implements Runnable {
 		uploadSocket = new ServerSocket(sPort, 10);
 		
 		new Thread(new Client(clientNum, Role.TALK_TO_SERVER)).start();
-		Thread.sleep(5000);
+		Thread.sleep(10000);
 		new Thread(new Client(clientNum, Role.DOWNLOADER)).start();
 		new Thread(new Client(clientNum, Role.UPLOADER)).start();
 	}
