@@ -9,7 +9,8 @@ public class Client implements Runnable {
 	public final int CHUNK_SIZE = 1024*100;
 	public enum Role{TALK_TO_SERVER, DOWNLOADER, UPLOADER};
 	
-	Socket requestSocket;           //socket connect to the server
+	Socket requestSrSocket;           //socket connect to the server
+	Socket requestDwSocket;           //socket connect to the download neighbor
 	ObjectOutputStream out;         //stream write to the socket
  	ObjectInputStream in;          //stream read from the socket
 	ObjectOutputStream outDown;         //stream write to the socket
@@ -52,13 +53,13 @@ public class Client implements Runnable {
 			case TALK_TO_SERVER: 
 				try{
 					//create a socket to connect to the server
-					requestSocket = new Socket("localhost", serverPort);
+					requestSrSocket = new Socket("localhost", serverPort);
 					System.out.println("Connected to server localhost at port " + serverPort);
 					
 					//initialize inputStream and outputStream
-					out = new ObjectOutputStream(requestSocket.getOutputStream());
+					out = new ObjectOutputStream(requestSrSocket.getOutputStream());
 					out.flush();
-					in = new ObjectInputStream(requestSocket.getInputStream());
+					in = new ObjectInputStream(requestSrSocket.getInputStream());
 					
 					while(true)
 					{
@@ -82,19 +83,19 @@ public class Client implements Runnable {
 					ioException.printStackTrace();
 				}
 				catch(Exception e){
-					//err.printStackTrace();
+					e.printStackTrace();
 				}
-				/*finally{
+				finally{
 					//Close connections
 					try{
 						in.close();
 						out.close();
-						//requestSocket.close();
+						requestSrSocket.close();
 					}
 					catch(IOException ioException){
 						ioException.printStackTrace();
 					}
-				}*/
+				}
 				break;
 				
 				
@@ -102,10 +103,10 @@ public class Client implements Runnable {
 				
 				try {				
 					//create a socket to connect to the server
-					while (requestSocket == null) {
+					while (requestDwSocket == null) {
 						try {
 							System.out.println(clientNum + ": Downloader connecting to port " + dwldNeighborPort);
-							requestSocket = new Socket("localhost", dwldNeighborPort);
+							requestDwSocket = new Socket("localhost", dwldNeighborPort);
 						}
 						catch(Exception e) {
 							System.out.println("Waiting for " + dwldNeighbor + " to come up. Retrying in 1 second.");
@@ -116,9 +117,9 @@ public class Client implements Runnable {
 					System.out.println("D: Connected to localhost at port " + dwldNeighborPort);
 					
 					//initialize inputStream and outputStream
-					outDown = new ObjectOutputStream(requestSocket.getOutputStream());
+					outDown = new ObjectOutputStream(requestDwSocket.getOutputStream());
 					outDown.flush();
-					inDown = new ObjectInputStream(requestSocket.getInputStream());
+					inDown = new ObjectInputStream(requestDwSocket.getInputStream());
 					
 					boolean isMerged = false;
 					while (true) {
@@ -131,6 +132,7 @@ public class Client implements Runnable {
 							if (!isMerged) {
 								System.out.println("Received all the chunks and MERGED!");
 								isMerged = true;
+								break;
 							}
 							//continue;
 						}
@@ -222,17 +224,18 @@ public class Client implements Runnable {
 					System.out.println(e);
 					e.printStackTrace();
 				}
-				/*finally{
+				finally{
 					//Close connections
 					try{
 						inDown.close();
 						outDown.close();
-						//requestSocket.close();
+						if (requestDwSocket != null)
+							requestDwSocket.close();
 					}
 					catch(IOException ioException){
 						ioException.printStackTrace();
 					}
-				}*/
+				}
 				
 				break;
 				
@@ -275,8 +278,11 @@ public class Client implements Runnable {
 							outUp.writeObject(chunkIDList);
 							outUp.flush();
 						}
-						else
+						else {
+							System.out.println("Excepted REQ: Received something else. Continuing");
 							continue;
+						}
+							
 						
 						// Get the requestedChunks from upload neighbor. These are the chunks that
 						// the upload neighbor needs from this client
@@ -315,22 +321,22 @@ public class Client implements Runnable {
 					System.err.println("You are trying to connect to an unknown host!");
 				}
 				catch(IOException ioException){
-					ioException.printStackTrace();
+					//ioException.printStackTrace();
+					System.out.println("Reached EOF");
 				}
 				catch(Exception e){
-					//err.printStackTrace();
+					e.printStackTrace();
 				}
-				/*finally{
+				finally{
 					//Close connections
 					try{
 						inUp.close();
 						outUp.close();
-						//requestSocket.close();
 					}
 					catch(IOException ioException){
 						ioException.printStackTrace();
 					}
-				}*/
+				}
 				
 				break;
 				
@@ -519,13 +525,8 @@ public class Client implements Runnable {
 	// main method
 	public static void main(String args[]) throws IOException, InterruptedException
 	{		
-		boolean success = false;
-		
 		// Command-line argument contains the number of clients to start
-		int clientNum = Integer.parseInt(args[0]);
-		//for (int i = 1; i <= numClients; i++) {
-		//new File("Client" + clientNum).mkdir();
-		
+		int clientNum = Integer.parseInt(args[0]);		
 
 		new File("chunks").mkdir();
 		new File("complete").mkdir();
@@ -539,7 +540,7 @@ public class Client implements Runnable {
 		new Thread(new Client(clientNum, Role.TALK_TO_SERVER)).start();
 		Thread.sleep(10000);
 		new Thread(new Client(clientNum, Role.DOWNLOADER)).start();
-		Thread.sleep(1000);
+		//Thread.sleep(1000);
 		new Thread(new Client(clientNum, Role.UPLOADER)).start();
 	}
 

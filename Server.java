@@ -11,16 +11,6 @@ public class Server {
 
 	public Server() {}
 
-/*	private class Data {
-		File fileObj;
-		ArrayList<Int> chunksAvailable;
-
-		public void Data(File f) {
-			fileObj = null;
-			chunksAvailable = new ArrayList<Int>();
-		}
-	}*/
-
 	// Split the file
 	private ArrayList<File> SplitFile(String filepath) throws IOException {
 		File fileObj = new File(filepath);
@@ -42,7 +32,6 @@ public class Server {
                 try (FileOutputStream out = new FileOutputStream(newFile)) {
                     out.write(buffer, 0, tmp);
                 	partFiles.add(newFile);
-                    //System.out.println(part);
                 }
             }
         }
@@ -163,9 +152,6 @@ public class Server {
 			catch(Exception e) {
 				System.out.println(e);
 			}
-			/*catch(ClassNotFoundException classnot){
-					System.err.println("Data received in unknown format");
-				}*/
 		}
 		catch(IOException ioException){
 			System.out.println("Disconnect with Client " + no);
@@ -194,12 +180,6 @@ public class Server {
 				out.flush();
 				flag = false;
 			}
-			
-			// Total chunks
-			/*if (totalChunks > 0) {
-				out.writeObject(totalChunks + "");
-				out.flush();				
-			}*/
 
 			// Current chunk number
 			out.writeObject(chunkNum + "");
