@@ -74,7 +74,7 @@ public class Server {
 	    Scanner scanner = new Scanner(System.in);
 	    String filename = scanner.next();
 	    scanner.close();*/
-	    String filename = "data.jpg";
+	    String filename = "dat.jpg";
 	    String filepath = "resources/" + filename;
 
 		Server S = new Server();
@@ -131,31 +131,23 @@ public class Server {
 			out.flush();
 			in = new ObjectInputStream(connection.getInputStream());
 			
-			/*int[] msgCount = new int[PEERS];
-			for(int i=0; i<PEERS; i++)
-				msgCount[i] = 0;*/
-			
-			//int limit = (int) java.lang.Math.floor(partFiles.size()/PEERS);
+			int msgCount = 0;
+			int limit = (int) java.lang.Math.floor(partFiles.size()/PEERS);
 			try{
-				while(chunkNum < partFiles.size()) // && msgCount[no] < limit)
+				while(chunkNum < partFiles.size() && msgCount < limit)
 				{	
 					sendMessage(partFiles.get(chunkNum), totalChunks, chunkNum, no, filename);
 					chunkNum++;
-					//msgCount[no]++;
+					msgCount++;
 					Thread.sleep(1000);
 				}
 				
-				if (chunkNum == partFiles.size()) {
-					out.writeObject("-1");
-					out.flush();
-				}
-				
-				/*while ((no == PEERS - 1) && (chunkNum < partFiles.size())) {
+				while ((no == PEERS - 1) && (chunkNum < partFiles.size())) {
 					sendMessage(partFiles.get(chunkNum), totalChunks, chunkNum, no, filename);
 					chunkNum++;
 					Thread.sleep(1000);
-					//msgCount = 0;
-				}*/
+					msgCount = 0;
+				}
 			}
 			catch(Exception e) {
 				System.out.println(e);

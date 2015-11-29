@@ -33,7 +33,6 @@ public class Client implements Runnable {
 	Socket upSock;						// UPLOADER: Upload socket
 	private static boolean flagFilename;
 	private static String filename;
-	private static boolean recdFromServer;
 
 	public Client(int num, Role r) {
 		flag = false;
@@ -62,8 +61,7 @@ public class Client implements Runnable {
 					out.flush();
 					in = new ObjectInputStream(requestSrSocket.getInputStream());
 					
-					recdFromServer = false;
-					while(!recdFromServer)
+					while(true)
 					{
 						System.out.println("Starting to receive chunks");
 		      			ReceiveFileChunksFromServer();
@@ -380,16 +378,11 @@ public class Client implements Runnable {
 			
 			int partNumber = Integer.parseInt((String)in.readObject());
 
-			if (partNumber == -1) {
-				recdFromServer = true;
-				return;
-			}
-			
 			File partFile = new File("chunks/" + filename + "." + partNumber);
 			byte[] msg = (byte[]) in.readObject();
 			Files.write(partFile.toPath(), msg);
 			availableChunks[partNumber] = partFile;
-			System.out.println("Received chunk " + partNumber + " from SERVER");
+			System.out.println("Received chunk " + partNumber);
 		}
 		catch (ClassNotFoundException e) {
 			flag = true;
@@ -546,20 +539,9 @@ public class Client implements Runnable {
 		
 		new Thread(new Client(clientNum, Role.TALK_TO_SERVER)).start();
 		Thread.sleep(10000);
-		
-		while (true) {
-			if (recdFromServer) {
-				new Thread(new Client(clientNum, Role.DOWNLOADER)).start();
-				Thread.sleep(1000);
-				new Thread(new Client(clientNum, Role.UPLOADER)).start();
-				break;
-			}
-			Thread.sleep(1000);
-			
-		}
-		//new Thread(new Client(clientNum, Role.DOWNLOADER)).start();
+		new Thread(new Client(clientNum, Role.DOWNLOADER)).start();
 		//Thread.sleep(1000);
-		//new Thread(new Client(clientNum, Role.UPLOADER)).start();
+		new Thread(new Client(clientNum, Role.UPLOADER)).start();
 	}
 
 }
