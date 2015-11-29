@@ -22,7 +22,7 @@ public class Client implements Runnable {
 	boolean flag;
 	int clientNum;
 	Role clientRole;
-	static int totalChunks;
+	int totalChunks;
 	File[] requiredChunks;
 	static int dwldNeighbor;
 	static int dwldNeighborPort;
@@ -39,7 +39,7 @@ public class Client implements Runnable {
 		clientNum = num;
 		flagFilename = true;
 		if (r == Role.TALK_TO_SERVER) {
-			//totalChunks = 0;
+			totalChunks = 0;
 			availableChunks = null;
 			requiredChunks = null;
 		}
@@ -120,93 +120,59 @@ public class Client implements Runnable {
 					outDown.flush();
 					inDown = new ObjectInputStream(requestSocket.getInputStream());
 					
-					boolean isMerged = false;
 					while (true) {
+						String requiredChunks = "";
 						
-						//if (isMerged) continue;
-						
-						// If there are no requiredChunks --> all the chunks have been received. So, merge!
-						if (AllChunksReceived()) {
-							MergeChunks(availableChunks);
-							if (!isMerged) {
-								System.out.println("Received all the chunks and MERGED!");
-								isMerged = true;
+						// If this client never contacted the server, then it has not received any chunks
+						if (availableChunks == null) {
+							
+							// We required all the chunks then
+							for(int i = 0; i < totalChunks; i++) {
+								if (requiredChunks == "")
+									requiredChunks += i;
+								else
+									requiredChunks += "," + i;
 							}
-							//continue;
+								
 						}
 						else {
+							System.out.println("D: Checking requiredChunks");
 							
-							// Request for dlwdNeighbor's chunk ID list
-							System.out.println("Requesting for Client " + dwldNeighbor + " chunk ID List");
-							outDown.writeObject("REQ");
-							outDown.flush();
-							
-							// Receive neighbor's chunk ID list
-							String chunkIDList = (String) inDown.readObject();
-							
-							System.out.println("Received chunk ID List from Client " + dwldNeighbor);
-							System.out.println(chunkIDList);
-							
-							String requiredChunks = "";
-							
-							// If this client never contacted the server, then it has not received any chunks
-							if (chunkIDList.isEmpty()) {
+							/*for(int i = 0; i < availableChunks.length; i++) {
+								if (availableChunks[i] != null)
+									System.out.print(i + "\t");
+							}*/
 								
-								System.out.println("chunkIDList empty");
-								continue;
-								
-								// We required all the chunks then
-								/*for(int i = 0; i < totalChunks; i++) {
+							for(int i = 0; i < availableChunks.length; i++) {
+								if (availableChunks[i] == null) {
 									if (requiredChunks == "")
 										requiredChunks += i;
 									else
 										requiredChunks += "," + i;
-								}*/
-									
-							}
-							else {
-								System.out.println("D: Checking requiredChunks");
-								
-								for(int i = 0; i < availableChunks.length; i++) {
-									if (availableChunks[i] != null)
-										System.out.print(i + "\t");
-								}
-								System.out.println();
-								
-								String[] chunkList = chunkIDList.split(",");
-								for(int i = 0; i < chunkList.length; i++) {
-									if (availableChunks[Integer.parseInt(chunkList[i])] == null) {
-										if (requiredChunks.isEmpty())
-											requiredChunks += chunkList[i];
-										else
-											requiredChunks += "," + chunkList[i];
-									}
 								}
 							}
 							
-							/*if (requiredChunks == "")
-								continue;*/
-							
-							// Send the requested chunks list to download neighbor
-							System.out.println("Requesting chunks " + requiredChunks + " from Client " + dwldNeighbor);
-							outDown.writeObject(requiredChunks);
-							outDown.flush();
-								
-							//Thread.sleep(1000);
-
-							// Receive file chunk from the download neighbor
-							if (!requiredChunks.isEmpty()) {
-								String[] rcArray = requiredChunks.split(",");
-								for (int i = 0; i < rcArray.length; i++)
-									ReceiveFileChunkFromNeighbor();
+							// If there are no requiredChunks --> all the chunks have been received. So, merge!
+							if (requiredChunks == "") {
+								MergeChunks(availableChunks);
+								System.out.println("Received all the chunks and MERGED!");
+								break;
 							}
-							
-								
-							Thread.sleep(1000);
-
-							
 						}
-						
+							
+						// Send the requested chunks list to download neighbor
+						System.out.println("Requesting chunks " + requiredChunks + " from Client " + dwldNeighbor);
+						outDown.writeObject(requiredChunks);
+						outDown.flush();
+							
+						//Thread.sleep(1000);
+
+						// Receive file chunk from the download neighbor
+						String[] rcArray = requiredChunks.split(",");
+						for (int i = 0; i < rcArray.length; i++)
+							ReceiveFileChunkFromNeighbor();
+							
+						//Thread.sleep(1000);
 					}
 				}
 				catch (ConnectException e) {
@@ -219,8 +185,7 @@ public class Client implements Runnable {
 					ioException.printStackTrace();
 				}
 				catch(Exception e){
-					System.out.println(e);
-					e.printStackTrace();
+					//err.printStackTrace();
 				}
 				/*finally{
 					//Close connections
@@ -253,38 +218,10 @@ public class Client implements Runnable {
 					String upRequested = "";
 					while (true) {
 						
-						// Look for a REQ from downloading peer
-						String req = (String) inUp.readObject();
-						System.out.println("************ Received " + req);
-						if (req.equals("REQ")) {
-							
-							String chunkIDList = "";
-							// Send our chunk ID list
-							for (int i = 0; i < availableChunks.length; i++) {
-								if (availableChunks[i] != null) {
-									if (chunkIDList.isEmpty())
-										chunkIDList += i;
-									else
-										chunkIDList += "," + i;
-								}
-							}
-							
-							
-							System.out.println("Sending chunk ID List to Client");
-							System.out.println(chunkIDList);
-							outUp.writeObject(chunkIDList);
-							outUp.flush();
-						}
-						else
-							continue;
-						
 						// Get the requestedChunks from upload neighbor. These are the chunks that
 						// the upload neighbor needs from this client
 						upRequested = (String) inUp.readObject();
 						String[] upRequestedChunks = upRequested.split(",");
-						
-						System.out.println("Received requestedChunks");
-						System.out.println(upRequested);
 						
 						// Check this against availableChunks and send the chunks that we have to Upload Neighbor
 						if (availableChunks == null) { 
@@ -292,20 +229,16 @@ public class Client implements Runnable {
 						}
 						else {
 							
-							if (!upRequested.isEmpty()) {
-								for (int i = 0; i < upRequestedChunks.length; i++) {
-									
-									// If we have the required chunk, send it!
-									int reqChunkNum = Integer.parseInt(upRequestedChunks[i]);
-									if (availableChunks[reqChunkNum] != null)
-										SendChunk(reqChunkNum);
-									else
-										SendChunk(-1);
-								}
+							for (int i = 0; i < upRequestedChunks.length; i++) {
+								
+								// If we have the required chunk, send it!
+								int reqChunkNum = Integer.parseInt(upRequestedChunks[i]);
+								if (availableChunks[reqChunkNum] != null)
+									SendChunk(reqChunkNum);
+								else
+									SendChunk(-1);
 							}
 						}
-						
-						Thread.sleep(1000);
 					}
 				}
 				catch (ConnectException e) {
@@ -342,27 +275,16 @@ public class Client implements Runnable {
 
 	}
 
-	
-	boolean AllChunksReceived() {
-		if (totalChunks > 0) {
-			for (int i = 0; i < totalChunks; i++) {
-				if (availableChunks[i] == null)
-					return false;
-			}
-			
-			return true;
-		}
-			
-		return false;
-	}
 
 	void ReceiveFileChunksFromServer() throws Exception, ClassNotFoundException {		
 		try {
 			if (flagFilename) {
 				filename = (String)in.readObject();
-				totalChunks = Integer.parseInt((String)in.readObject());
 				flagFilename = false;
 			}
+				
+			
+			totalChunks = Integer.parseInt((String)in.readObject());
 			
 			if (availableChunks == null)
 				availableChunks = new File[totalChunks];
@@ -459,9 +381,7 @@ public class Client implements Runnable {
 				byte[] fileContents = Files.readAllBytes(availableChunks[chunkNum].toPath());
 				outUp.writeObject(fileContents);
 				outUp.flush();
-				System.out.println("Sent chunk " + chunkNum + " to Client");
 			}
-			
 		}
 		catch(IOException ioException){
 			ioException.printStackTrace();
@@ -539,7 +459,6 @@ public class Client implements Runnable {
 		new Thread(new Client(clientNum, Role.TALK_TO_SERVER)).start();
 		Thread.sleep(10000);
 		new Thread(new Client(clientNum, Role.DOWNLOADER)).start();
-		Thread.sleep(1000);
 		new Thread(new Client(clientNum, Role.UPLOADER)).start();
 	}
 

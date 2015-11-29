@@ -7,7 +7,6 @@ public class Server {
 
 	private static int sPort;
 	public final int CHUNK_SIZE = 1024*100;
-	public static final int PEERS = 3;
 
 	public Server() {}
 
@@ -28,8 +27,6 @@ public class Server {
 		ArrayList<File> partFiles = new ArrayList<File>();
 		int part = 0;
 
-		System.out.println("File size: " + fileObj.length());
-		
 		try (BufferedInputStream bis = new BufferedInputStream(
                 new FileInputStream(fileObj))) {
             String name = fileObj.getName();
@@ -81,11 +78,10 @@ public class Server {
 	
 	public static void main(String[] args) throws Exception {
 
-		/*System.out.print("Enter the name of the file: ");
+		System.out.print("Enter the name of the file: ");
 	    Scanner scanner = new Scanner(System.in);
 	    String filename = scanner.next();
-	    scanner.close();*/
-	    String filename = "dat.jpg";
+	    scanner.close();
 	    String filepath = "resources/" + filename;
 
 		Server S = new Server();
@@ -95,12 +91,16 @@ public class Server {
 		int totalChunks = partFiles.size();
 		System.out.println("Total chunks = " + totalChunks);
 
+		/*for (int k=0;k<totalChunks ;k++ ) {
+			System.out.println(partFiles.get(k));
+		}*/
+
 		S.ReadConfig();
 		
 		System.out.println("The server is running."); 
         ServerSocket listener = new ServerSocket(sPort);
 		int clientNum = 0;
-		
+        
         try {
             while(true) {
 				clientNum++;
@@ -122,9 +122,8 @@ public class Server {
 	private int totalChunks;
 	private static int chunkNum = 0;
 	private static String filename = "";
-	private boolean flag;
-	private int chunksPerPeer;
-	
+	private static boolean flag;
+
     public Handler(Socket connection, int no, ArrayList<File> partFiles, int totalChunks, String fname) {
     	this.connection = connection;
 		this.no = no;
@@ -141,28 +140,16 @@ public class Server {
 			out = new ObjectOutputStream(connection.getOutputStream());
 			out.flush();
 			in = new ObjectInputStream(connection.getInputStream());
-			
-			int msgCount = 0;
-			int limit = (int) java.lang.Math.floor(partFiles.size()/PEERS);
+
 			try{
-				while(chunkNum < partFiles.size() && msgCount < limit)
-				{	
-					sendMessage(partFiles.get(chunkNum), totalChunks, chunkNum, no, filename);
-					chunkNum++;
-					msgCount++;
-					Thread.sleep(1000);
-				}
-				
-				while ((no == PEERS - 1) && (chunkNum < partFiles.size())) {
+				while(chunkNum < partFiles.size())
+				{					
 					sendMessage(partFiles.get(chunkNum), totalChunks, chunkNum, no, filename);
 					chunkNum++;
 					Thread.sleep(1000);
-					msgCount = 0;
 				}
 			}
-			catch(Exception e) {
-				System.out.println(e);
-			}
+			catch(Exception e) {}
 			/*catch(ClassNotFoundException classnot){
 					System.err.println("Data received in unknown format");
 				}*/
@@ -190,16 +177,14 @@ public class Server {
 			if (flag) {
 				out.writeObject(filename);
 				out.flush();
-				out.writeObject(totalChunks + "");
-				out.flush();
 				flag = false;
 			}
 			
 			// Total chunks
-			/*if (totalChunks > 0) {
+			if (totalChunks > 0) {
 				out.writeObject(totalChunks + "");
 				out.flush();				
-			}*/
+			}
 
 			// Current chunk number
 			out.writeObject(chunkNum + "");
