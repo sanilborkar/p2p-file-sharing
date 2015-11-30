@@ -1,4 +1,4 @@
-// CLIENT 2
+// CLIENT
 
 import java.net.*;
 import java.io.*;
@@ -6,34 +6,32 @@ import java.nio.file.Files;
 import java.util.*;
 
 public class Client implements Runnable {
-	public final int CHUNK_SIZE = 1024*100;
-	public enum Role{TALK_TO_SERVER, DOWNLOADER, UPLOADER};
+	public final int CHUNK_SIZE = 1024*100;						// chunk size
+	public enum Role{TALK_TO_SERVER, DOWNLOADER, UPLOADER};		
 	
-	Socket requestSrSocket;           //socket connect to the server
-	Socket requestDwSocket;           //socket connect to the download neighbor
-	ObjectOutputStream out;         //stream write to the socket
- 	ObjectInputStream in;          //stream read from the socket
-	ObjectOutputStream outDown;         //stream write to the socket
- 	ObjectInputStream inDown;          //stream read from the socket
- 	ObjectOutputStream outUp;         //stream write to the socket
- 	ObjectInputStream inUp;          //stream read from the socket
-	String message;                //message send to the server
-	int MESSAGE;                //capitalized message read from the server
-	static File[] availableChunks;
+	Socket requestSrSocket;         // Socket to connect to the server
+	Socket requestDwSocket;         // Socket to connect to the download neighbor
+	ObjectOutputStream out;        	// Stream to write to the server socket
+ 	ObjectInputStream in;          	// Stream to read from the server socket
+	ObjectOutputStream outDown;    	// Stream to write to the download neighbor socket
+ 	ObjectInputStream inDown;      	// Stream to read from the download neighbor socket
+ 	ObjectOutputStream outUp;      	// Stream to write to the upload neighbor socket
+ 	ObjectInputStream inUp;        	// Stream to read from the upload neighbor socket
+	static File[] availableChunks;	// Chunks available
 	boolean flag;
-	int clientNum;
-	Role clientRole;
-	static int totalChunks;
-	File[] requiredChunks;
-	static int dwldNeighbor;
-	static int dwldNeighborPort;
-	static int sPort;					// The port at which this client will listen on (when acting as UPLOADER)
+	int clientNum;					// Client number
+	Role clientRole;				// The role of the thread - talking to server, uploader, downloader
+	static int totalChunks;			// Total number of chunks
+	File[] requiredChunks;			// The chunks that are required
+	static int dwldNeighbor;		// Download neighbor client number
+	static int dwldNeighborPort;	// Download neighbor port
+	static int sPort;				// The port at which this client will listen on (when acting as UPLOADER)
 	static int serverPort;				// The port at which the server is listening on
-	static ServerSocket uploadSocket;
+	static ServerSocket uploadSocket;	// Socket for uploading (when acting as UPLOADER)
 	Socket upSock;						// UPLOADER: Upload socket
 	private static boolean flagFilename;
 	private static String filename;
-	private static boolean recdFromServer;
+	private static boolean recdFromServer;		// To indicate if all the required chunks are received from the server
 
 	public Client(int num, Role r) {
 		flag = false;
@@ -41,7 +39,6 @@ public class Client implements Runnable {
 		clientNum = num;
 		flagFilename = true;
 		if (r == Role.TALK_TO_SERVER) {
-			//totalChunks = 0;
 			availableChunks = null;
 			requiredChunks = null;
 		}
@@ -126,8 +123,6 @@ public class Client implements Runnable {
 					boolean isMerged = false;
 					while (true) {
 						
-						//if (isMerged) continue;
-						
 						// If there are no requiredChunks --> all the chunks have been received. So, merge!
 						if (AllChunksReceived()) {
 							MergeChunks(availableChunks);
@@ -136,7 +131,6 @@ public class Client implements Runnable {
 								isMerged = true;
 								break;
 							}
-							//continue;
 						}
 						else {
 							
@@ -163,7 +157,7 @@ public class Client implements Runnable {
 							
 							String requiredChunks = "";
 							
-							// If this client never contacted the server, then it has not received any chunks
+							// If this client has not received any chunks (this situation will not occur)
 							if (chunkIDList.isEmpty()) {
 								
 								System.out.println("chunkIDList empty");
@@ -171,18 +165,22 @@ public class Client implements Runnable {
 								
 							}
 							else {
-								System.out.println("D: Checking requiredChunks");
+								System.out.println("DOWNLOADER: Checking requiredChunks");
 								
+								// If no available chunks, all the chunks are required
 								if (availableChunks == null) {
-									System.out.println("D: No available chunks!");
+									System.out.println("DOWNLOADER: No available chunks!");
 									for (int i = 0; i < totalChunks; i++)
 										if (requiredChunks.isEmpty())
 											requiredChunks += i;
 										else
 											requiredChunks += "," + i;
 								}
+
+								// Find the required chunks
 								else {
 									
+									// Print the available chunks
 									for(int i = 0; i < availableChunks.length; i++) {
 										if (availableChunks[i] != null)
 											System.out.print(i + "\t");
@@ -202,15 +200,10 @@ public class Client implements Runnable {
 								
 							}
 							
-							/*if (requiredChunks == "")
-								continue;*/
-							
 							// Send the requested chunks list to download neighbor
 							System.out.println("Requesting chunks " + requiredChunks + " from Client " + dwldNeighbor);
 							outDown.writeObject(requiredChunks);
 							outDown.flush();
-								
-							//Thread.sleep(1000);
 
 							// Receive file chunk from the download neighbor
 							if (!requiredChunks.isEmpty()) {
@@ -219,10 +212,7 @@ public class Client implements Runnable {
 									ReceiveFileChunkFromNeighbor();
 							}
 							
-								
 							Thread.sleep(1000);
-
-							
 						}
 						
 					}
@@ -241,7 +231,7 @@ public class Client implements Runnable {
 					e.printStackTrace();
 				}
 				finally{
-					//Close connections
+					// Close connections
 					try{
 						inDown.close();
 						outDown.close();
@@ -267,14 +257,16 @@ public class Client implements Runnable {
 					outUp.flush();
 					inUp = new ObjectInputStream(upSock.getInputStream());
 					
-					System.out.println(clientNum + ": Uploader listening on port " + sPort);
+					System.out.println(clientNum + ": UPLOADER listening on port " + sPort);
 					
 					String upRequested = "";
 					while (true) {
 						
 						// Look for a REQ from downloading peer
 						String req = (String) inUp.readObject();
-						System.out.println("************ Received " + req);
+						System.out.println("UPLOADER -------> Received " + req);
+
+						// If a REQ was received
 						if (req.equals("REQ")) {
 							
 							String chunkIDList = "";
@@ -289,7 +281,7 @@ public class Client implements Runnable {
 							}
 							
 							
-							System.out.println("Sending chunk ID List to Client");
+							System.out.println("UPLOADER: Sending chunk ID List to Client");
 							System.out.println(chunkIDList);
 							outUp.writeObject(chunkIDList);
 							outUp.flush();
@@ -301,16 +293,16 @@ public class Client implements Runnable {
 							
 						
 						// Get the requestedChunks from upload neighbor. These are the chunks that
-						// the upload neighbor needs from this client
+						// the upload neighbor needs from this client.
 						upRequested = (String) inUp.readObject();
 						String[] upRequestedChunks = upRequested.split(",");
 						
-						System.out.println("Received requestedChunks");
+						System.out.println("UPLOADER: Received requestedChunks");
 						System.out.println(upRequested);
 						
 						// Check this against availableChunks and send the chunks that we have to Upload Neighbor
 						if (availableChunks == null) { 
-							//System.out.println("U: availableChunks is NULL");
+							System.out.println("UPLOADER: availableChunks is NULL");
 						}
 						else {
 							
@@ -364,7 +356,7 @@ public class Client implements Runnable {
 
 	}
 
-	
+	// Check if all the chunks were received
 	boolean AllChunksReceived() {
 		if (totalChunks > 0) {
 			for (int i = 0; i < totalChunks; i++) {
@@ -378,11 +370,13 @@ public class Client implements Runnable {
 		return false;
 	}
 
+	// Receive a chunk from the Server (File Owner)
 	void ReceiveFileChunksFromServer() throws Exception, ClassNotFoundException {		
 		try {
 			if (flagFilename) {
 				filename = (String)in.readObject();
-				
+
+				// Indicates all the quota of chunks were received from the server				
 				if (filename.equals("-1")) {
 					recdFromServer = true;
 					return;
@@ -400,12 +394,14 @@ public class Client implements Runnable {
 			
 			int partNumber = Integer.parseInt((String)in.readObject());
 
+			// Indicates all the quota of chunks were received from the server
 			if (partNumber == -1) {
 				recdFromServer = true;
 				return;
 			}
 			
-			File partFile = new File("chunks/" + filename + "." + partNumber);
+			// Write the chunk just received to the "chunks" folder
+			File partFile = new File("Client" + clientNum + "/chunks/" + filename + "." + partNumber);
 			byte[] msg = (byte[]) in.readObject();
 			Files.write(partFile.toPath(), msg);
 			availableChunks[partNumber] = partFile;
@@ -420,6 +416,7 @@ public class Client implements Runnable {
 	}
 
 	
+	// Receive a chunk from the download neighbor
 	void ReceiveFileChunkFromNeighbor() throws Exception, ClassNotFoundException {		
 		try {
 			int	chunkNum = Integer.parseInt((String)inDown.readObject());
@@ -428,7 +425,8 @@ public class Client implements Runnable {
 			
 			byte[] msg = (byte[]) inDown.readObject();
 			
-			File chunkFile = new File("chunks/" + filename + "." + chunkNum);
+			// Store the chunk received to "chunks" folder
+			File chunkFile = new File("Client" + clientNum + "/chunks/" + filename + "." + chunkNum);
 			Files.write(chunkFile.toPath(), msg);
 			
 			availableChunks[chunkNum] = chunkFile;
@@ -443,7 +441,7 @@ public class Client implements Runnable {
 	}
 	
 	
-	// Merge the availableChunks to build the original file
+	// Merge the available chunks to build the original file. This file will be stored in "complete" folder
 	void MergeChunks(File[] chunks) throws IOException {
 		
 		// Safety check
@@ -452,7 +450,7 @@ public class Client implements Runnable {
 			return;
 		}
 		
-	    FileOutputStream fos = new FileOutputStream("complete/" + filename);
+	    FileOutputStream fos = new FileOutputStream("Client" + clientNum + "/complete/" + filename);
 		
 		try {
 		    FileInputStream fis;
@@ -462,8 +460,11 @@ public class Client implements Runnable {
 		        fis = new FileInputStream(f);
 		        fileBytes = new byte[(int) f.length()];
 		        bytesRead = fis.read(fileBytes, 0, (int) f.length());
+
+		        // Check if everything was fine
 		        assert(bytesRead == fileBytes.length);
 		        assert(bytesRead == (int) f.length());
+
 		        fos.write(fileBytes);
 		        fos.flush();
 		        fileBytes = null;
@@ -479,11 +480,11 @@ public class Client implements Runnable {
 		}
 	}
 	
-	//send a message to the output stream
+	// Send a chunk to the upload neighbor
 	void SendChunk(int chunkNum)
 	{
 		try{
-			// Send the chunk number that will follow
+			// Send the chunk number
 			outUp.writeObject(chunkNum + "");
 			outUp.flush();
 			
@@ -555,8 +556,9 @@ public class Client implements Runnable {
 		// Command-line argument contains the number of clients to start
 		int clientNum = Integer.parseInt(args[0]);		
 
-		new File("chunks").mkdir();
-		new File("complete").mkdir();
+		new File("Client" + clientNum).mkdir();
+		new File("Client" + clientNum + "/chunks").mkdir();
+		new File("Client" + clientNum + "/complete").mkdir();
 			
 		// Read configuration file
 		ReadConfig(clientNum);
@@ -575,11 +577,7 @@ public class Client implements Runnable {
 				break;
 			}
 			Thread.sleep(1000);
-			
 		}
-		//new Thread(new Client(clientNum, Role.DOWNLOADER)).start();
-		//Thread.sleep(1000);
-		//new Thread(new Client(clientNum, Role.UPLOADER)).start();
 	}
 
 }

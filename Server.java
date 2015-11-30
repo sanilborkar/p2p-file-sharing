@@ -1,3 +1,5 @@
+// SERVER (FILE OWNER)
+
 import java.net.*;
 import java.io.*;
 import java.nio.file.Files;
@@ -47,7 +49,6 @@ public class Server {
 		try {
 
 			input = new FileInputStream("resources/config.properties");
-			//input = new FileInputStream("../resources/config.properties");
 
 			// load the properties file
 			prop.load(input);
@@ -70,13 +71,23 @@ public class Server {
 	
 	public static void main(String[] args) throws Exception {
 
-		/*System.out.print("Enter the name of the file: ");
-	    Scanner scanner = new Scanner(System.in);
-	    String filename = scanner.next();
-	    scanner.close();*/
-	    String filename = "dat.jpg";
-	    String filepath = "resources/" + filename;
-
+		String filename = "";
+		String filepath = "";
+		boolean found = false;
+		while (!found) {
+			System.out.print("Enter the name of the file: ");
+		    Scanner scanner = new Scanner(System.in);
+		    filename = scanner.next();
+		    filepath = "resources/" + filename;
+		    
+		    if (new File(filepath).exists()) {
+		    	found = true;
+		    	scanner.close();
+		    }
+		    else
+		    	System.out.println("File " + filename + " NOT found! Please enter the filename again.");
+		}
+	    
 		Server S = new Server();
 		
 		// Chop the file into 100KB chunks
@@ -90,6 +101,7 @@ public class Server {
         ServerSocket listener = new ServerSocket(sPort);
 		int clientNum = 0;
 		
+		// Listen for client connections. 
         try {
             while(true) {
 				clientNum++;
@@ -108,11 +120,10 @@ public class Server {
     private ObjectOutputStream out;    	// Stream write to the socket
 	private int no;						// Client number
 	private ArrayList<File> partFiles;	// Stores the file chunks objects
-	private int totalChunks;
-	private static int chunkNum = 0;
-	private static String filename = "";
-	private boolean flag;
-	private int chunksPerPeer;
+	private int totalChunks;			// Total number of chunks
+	private static int chunkNum = 0;	// chunk Number
+	private static String filename = "";		// Name of the file to be distributed
+	private boolean flag;				
 	
     public Handler(Socket connection, int no, ArrayList<File> partFiles, int totalChunks, String fname) {
     	this.connection = connection;
@@ -131,16 +142,11 @@ public class Server {
 			out.flush();
 			in = new ObjectInputStream(connection.getInputStream());
 			
-			/*int[] msgCount = new int[PEERS];
-			for(int i=0; i<PEERS; i++)
-				msgCount[i] = 0;*/
-			
 			int msgCount = -1;
-			int sendThreshold = (int) (0.5*totalChunks);
-			boolean isEOFSent = false;
+			int sendThreshold = (int) (0.25*totalChunks);
 			System.out.println("Setting a SEND threshold of " + sendThreshold);
 			try{
-				while(chunkNum <= partFiles.size()) // && msgCount[no] < limit)
+				while(chunkNum <= partFiles.size())
 				{	
 					if (msgCount == sendThreshold) {
 						out.writeObject("-1");
@@ -158,14 +164,6 @@ public class Server {
 					
 					Thread.sleep(1000);
 				}
-				
-
-				/*while ((no == PEERS - 1) && (chunkNum < partFiles.size())) {
-					sendMessage(partFiles.get(chunkNum), totalChunks, chunkNum, no, filename);
-					chunkNum++;
-					Thread.sleep(1000);
-					//msgCount = 0;
-				}*/
 			}
 			catch(IndexOutOfBoundsException ie) {
 				System.out.println(ie);
@@ -190,10 +188,10 @@ public class Server {
 		}
 	}
 
-	//send a message to the output stream
+	//send a message to the client
 	public void sendMessage(File msg, int totalChunks, int chunkNum, int clientNum, String filename) {
 		try{
-			// Filename
+			// Before the first message, send the filename and total number of chunks
 			if (flag) {
 				out.writeObject(filename);
 				out.flush();
@@ -202,10 +200,11 @@ public class Server {
 				flag = false;
 			}
 
-			// Current chunk number
+			// Send current chunk number
 			out.writeObject(chunkNum + "");
 			out.flush();
 
+			// Send the chunk
 			byte [] mybytearray  = Files.readAllBytes(msg.toPath());
 			out.writeObject(mybytearray);
 			out.flush();
