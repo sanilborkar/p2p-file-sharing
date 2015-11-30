@@ -145,8 +145,18 @@ public class Client implements Runnable {
 							outDown.writeObject("REQ");
 							outDown.flush();
 							
-							// Receive neighbor's chunk ID list
-							String chunkIDList = (String) inDown.readObject();
+							String chunkIDList = "";
+							try {
+								// Receive neighbor's chunk ID list
+								chunkIDList = (String) inDown.readObject();
+							}
+							catch (EOFException e) {
+								System.out.println("Received empty chunk ID list from " + dwldNeighbor);
+							}
+							catch (NullPointerException e) {
+								System.out.println("Received empty chunk ID list from " + dwldNeighbor);
+							}
+							
 							
 							System.out.println("Received chunk ID List from Client " + dwldNeighbor);
 							System.out.println(chunkIDList);
@@ -159,33 +169,37 @@ public class Client implements Runnable {
 								System.out.println("chunkIDList empty");
 								continue;
 								
-								// We required all the chunks then
-								/*for(int i = 0; i < totalChunks; i++) {
-									if (requiredChunks == "")
-										requiredChunks += i;
-									else
-										requiredChunks += "," + i;
-								}*/
-									
 							}
 							else {
 								System.out.println("D: Checking requiredChunks");
 								
-								for(int i = 0; i < availableChunks.length; i++) {
-									if (availableChunks[i] != null)
-										System.out.print(i + "\t");
-								}
-								System.out.println();
-								
-								String[] chunkList = chunkIDList.split(",");
-								for(int i = 0; i < chunkList.length; i++) {
-									if (availableChunks[Integer.parseInt(chunkList[i])] == null) {
+								if (availableChunks == null) {
+									System.out.println("D: No available chunks!");
+									for (int i = 0; i < totalChunks; i++)
 										if (requiredChunks.isEmpty())
-											requiredChunks += chunkList[i];
+											requiredChunks += i;
 										else
-											requiredChunks += "," + chunkList[i];
+											requiredChunks += "," + i;
+								}
+								else {
+									
+									for(int i = 0; i < availableChunks.length; i++) {
+										if (availableChunks[i] != null)
+											System.out.print(i + "\t");
+									}
+									System.out.println();
+									
+									String[] chunkList = chunkIDList.split(",");
+									for(int i = 0; i < chunkList.length; i++) {
+										if (availableChunks[Integer.parseInt(chunkList[i])] == null) {
+											if (requiredChunks.isEmpty())
+												requiredChunks += chunkList[i];
+											else
+												requiredChunks += "," + chunkList[i];
+										}
 									}
 								}
+								
 							}
 							
 							/*if (requiredChunks == "")
@@ -368,6 +382,12 @@ public class Client implements Runnable {
 		try {
 			if (flagFilename) {
 				filename = (String)in.readObject();
+				
+				if (filename.equals("-1")) {
+					recdFromServer = true;
+					return;
+				}
+				
 				totalChunks = Integer.parseInt((String)in.readObject());
 				flagFilename = false;
 			}

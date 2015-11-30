@@ -74,7 +74,7 @@ public class Server {
 	    Scanner scanner = new Scanner(System.in);
 	    String filename = scanner.next();
 	    scanner.close();*/
-	    String filename = "data.jpg";
+	    String filename = "dat.jpg";
 	    String filepath = "resources/" + filename;
 
 		Server S = new Server();
@@ -135,27 +135,40 @@ public class Server {
 			for(int i=0; i<PEERS; i++)
 				msgCount[i] = 0;*/
 			
-			//int limit = (int) java.lang.Math.floor(partFiles.size()/PEERS);
+			int msgCount = -1;
+			int sendThreshold = (int) (0.5*totalChunks);
+			boolean isEOFSent = false;
+			System.out.println("Setting a SEND threshold of " + sendThreshold);
 			try{
-				while(chunkNum < partFiles.size()) // && msgCount[no] < limit)
+				while(chunkNum <= partFiles.size()) // && msgCount[no] < limit)
 				{	
+					if (msgCount == sendThreshold) {
+						out.writeObject("-1");
+						out.flush();
+						break;
+					}
+					
+					if (chunkNum == partFiles.size()) {
+						chunkNum = 0;
+					}
+					
 					sendMessage(partFiles.get(chunkNum), totalChunks, chunkNum, no, filename);
 					chunkNum++;
-					//msgCount[no]++;
+					msgCount++;
+					
 					Thread.sleep(1000);
 				}
 				
-				if (chunkNum == partFiles.size()) {
-					out.writeObject("-1");
-					out.flush();
-				}
-				
+
 				/*while ((no == PEERS - 1) && (chunkNum < partFiles.size())) {
 					sendMessage(partFiles.get(chunkNum), totalChunks, chunkNum, no, filename);
 					chunkNum++;
 					Thread.sleep(1000);
 					//msgCount = 0;
 				}*/
+			}
+			catch(IndexOutOfBoundsException ie) {
+				System.out.println(ie);
 			}
 			catch(Exception e) {
 				System.out.println(e);
